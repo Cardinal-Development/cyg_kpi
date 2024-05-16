@@ -1,0 +1,89 @@
+{
+    "name": "kpi without dut",
+    "configuration": {
+        "setting": 1,
+        "another_setting": 2,
+        "stop_policy":"StopOnFail"
+    },
+    "actions": [
+        {
+            "name": "robot connect",
+            "type": "cardinal.testactions.testactionif.TestActionIf",
+            "condition": {
+                "name": "check robot alarm",
+                "external_type": true,
+                "type": "see_thru.testactions.function.robot_alarm"
+            },
+            "then": [
+                        {
+                            "name": "TestActionRobot_start_test_CallJob",
+                            "skip": false,
+                            "external_type": true,
+                            "type": "KPI.testactions.function.TestActionRobotCallJob",
+                            "job_name":"HEAD_HOME",
+                            "job_timeout":30
+                        },
+                        {
+                            "name": "TestActionRobot_readSn_dut",
+                            "skip": false,
+                            "external_type": true,
+                            "type": "KPI.testactions.function.TestActionInitializeADB_DUT"
+                        },
+                        {
+                            "name": "TestActionRobot_startTracking",
+                            "skip": false,
+                            "external_type": true,
+                            "type": "KPI.testactions.function.TestActionInitialize_startTracking",
+                            "duration": 100,
+                            "outputPathPrefix": "C:/Temp_VRS_PATH"
+                        },
+                        {
+                        "name": "TestActionRobot_ADB_VRS",
+                        "skip": false,
+                        "external_type": true,
+                        "type": "KPI.testactions.function.TestActionInitializeADB_DutVRS"
+
+                        },
+                        {
+                            "name": "TestActionRobot_test_CallJob",
+                            "skip": false,
+                            "external_type": true,
+                            "type": "KPI.testactions.function.TestActionRobotCallJob",
+                            "job_name":"CLONED_ALIGNMENT",
+                            "job_timeout":3000
+                        },
+                        {
+                        "name": "TestAction_ADB_VRS_result",
+                        "skip": false,
+                        "external_type": true,
+                        "type": "KPI.testactions.function.TestActionInitializeADB_VRS_result",
+                        "pull_vrs_path": "C:/Temp_VRS_PATH"
+
+                        },
+                        {
+                            "name": "TestActionRobot_test_CallJob",
+                            "skip": false,
+                            "external_type": true,
+                            "type": "KPI.testactions.function.TestActionRobotCallJob",
+                            "job_name":"HEAD_HOME",
+                            "job_timeout":30
+                        },
+                        {
+                            "name": "TestActionCopyDatafile",
+                            "skip": false,
+                            "external_type": true,
+                            "type": "KPI.testactions.function.TestActionCopyDatafile",
+                            "copy_file_path": "C:/Temp_VRS_PATH"
+
+                        },
+                        {
+                            "name": "TestActionFinishTest",
+                            "external_type": true,
+                            "type": "KPI.testactions.function.TestActionFinishTest_KPI",
+                            "stop_policy": "ExecuteLast"
+                        }
+                    ]
+
+        }
+    ]
+}
