@@ -24,6 +24,11 @@ from arvr.projects.manufacturing.cardinal.testactions.exceptions import (
 
 from kpi.motion_control.GP8.robot_control import GP8_Robot as Robot
 
+# from kpi.motion_control.light.light_control import light_controller
+
+# from kpi.motion_control.zaber_motion.zaber_motion import zaber_controller
+
+# from kpi.dut.metaCommandYaml import camera, dut, commandRunner
 
 from kpi.dut.dut_record import run_properties
 
@@ -49,7 +54,7 @@ class TAExceptionFail(TestAction):
         return ExceptionFail(self, nesting_level, Exception())
 
 
-#  chico===========⬇=======================
+# 5.8整合chico===========⬇=======================
 class TestInformationDisplay(TestAction):
     def __init__(self, action_data: Mapping):
         super().__init__(action_data)
@@ -112,11 +117,62 @@ class TestInformationDisplay(TestAction):
             logger.info(f"enable_text_input-->{response.text_input}")
             logger.info(f"context.temp_id -->{context.temp_id}")
         except Exception as e:
-            logger.error(f"Error Obtaining the test id-->{e}")
+            logger.error(f"显示text错误>{e}")
             return Fail(self, nesting_level)
-
+        logger.info(f"step:TestInformationDisplay -->finish")
         return Pass(self, nesting_level)
 
+
+class TestInformationDisplay_2(TestAction):
+    def __init__(self, action_data: Mapping):
+        super().__init__(action_data)
+        self.time_out = action_data.get("timeout", 90)
+        self.messages = action_data.get("message")
+        self.skip = action_data.get("skip", True)
+
+    def run(self, context: Context, nesting_level: int):
+        if self.skip:
+            return Pass(self, nesting_level)
+        prompt = Prompt(message=self.messages, timeout=10, enable_text_input=False)
+        context.prompt = prompt
+        while not isinstance(context.prompt, PromptResponse):
+            if prompt.time_remaining <= 0:
+                context.prompt = PromptResponse(
+                    result=PromptResponse.PromptResult("TIMEOUT")
+                )
+            time.sleep(0.5)
+
+        if context.prompt.result != PromptResponse.PromptResult.OK:
+            logger.info("I did not get OK got %s", context.prompt.result)
+            return Fail(self, nesting_level)
+
+        # context.prompt = prompt
+        # time.sleep(5)
+        logger.info(f'test_id:{context.test_id}')
+        return Pass(self, nesting_level)
+
+
+class TestInformationDisplay_3(TestAction):
+    def __init__(self, action_data: Mapping):
+        super().__init__(action_data)
+        self.time_out = action_data.get("timeout", 90)
+        self.messages = action_data.get("message")
+        self.skip = action_data.get("skip", True)
+
+    def run(self, context: Context, nesting_level: int):
+        if self.skip:
+            return Pass(self, nesting_level)
+        try:
+            message = context.temp_id
+            logger.info(f"获取到的message是{message}")
+            path_ = 'D:\\MESSAGES'
+            if not os.path.exists(path_):
+                os.makedirs(path_)
+            with open(f'{path_}\\log.txt', 'w') as f:
+                f.write(message)
+        except Exception as e:
+            logger.info(f"获取context.temp_id出错>{message}")
+        return Pass(self, nesting_level)
 
 
 class TestActionCallChicoPrepare(TestAction):
@@ -131,19 +187,18 @@ class TestActionCallChicoPrepare(TestAction):
 
         test_id = context.temp_id
         try:
-            command = f'python chico.pex prepare_device --rtm {test_id} --reboot'
+            command = f'python chico.par prepare_device --rtm {test_id} --reboot'
             res, err_res,recode = camera_adbDut.chico_cmd(command, self.timeout)
             logger.info(f"command is {command}")
-            logger.info(f"res:{res} ")
-            logger.info(f"err_res: {err_res} ")
             logger.info(f"recode------>: {recode} ")
 
             if recode == 0:
+                logger.info(f"step:call_chico_prepare_device--->finish")
                 return Pass(self, nesting_level)
             else:
                 return Fail(self, nesting_level)
         except Exception as e:
-            logger.info(f"Error getting chico ready to run--->{e}")
+            logger.info(f"让chico准备运行时出错，->{e}")
             return Fail(self, nesting_level)
 
 
@@ -164,24 +219,58 @@ class TestActionInvokingChico(TestAction):
             if not os.path.exists(output_dir_):
                 os.makedirs(output_dir_)
             command = (
-                f"$env:OPTITRACK_IP='192.168.1.200'; python chico.pex --disable-ui config_collect --check_db_state "
+                f"$env:OPTITRACK_IP='192.168.1.200'; python chico.par --disable-ui config_collect --check_db_state "
                 f"--upload --output_dir {output_dir_} --config_file {chico_config_path}")
 
             logger.info(f"chico_thread_command-->{command}")
 
             camera_adbDut.call_chico_thread(command, timeout=self.timeout)
         except Exception as e:
-            logger.error(F"Error calling chico thread-->：{e}")
+            logger.error(F"调用chico线程时出错：{e}")
             return Fail(self, nesting_level)
+        logger.info(f"step:invokingChico--->finish")
         return Pass(self, nesting_level)
 
+# 5.22 chico
+class TestActionWaitChicoRecord(TestAction):
+    def __init__(self, action_data: Mapping):
+        super().__init__(action_data)
+        self.skip = action_data.get("skip", True)
+        self.wait_timeout = action_data.get("wait_timeout", 300)
+
+    def run(self, context: Context, nesting_level: int):
+        if self.skip:
+            return Pass(self, nesting_level)
+        try:
+            start_time = time.time()
+            while True:
+                command = f'adb shell pidof vrs-recorder'
+                res, err_res, recode = camera_adbDut.chico_cmd(command, self.timeout)
+                logger.info(f"command is {command}")
+                logger.info(f"res:{res} ")
+                logger.info(f"err_res: {err_res} ")
+                logger.info(f"recode------>: {recode} ")
+
+                if recode == 0:
+                    break
+                else:
+                    time.sleep(0.1)
+                if time.time() - start_time > self.wait_timeout:
+                    logger.error(f"等待chico录制超时")
+                    return Fail(self, nesting_level)
+            logger.info(f"step:wait_chico_record--->finish")
+            return Pass(self, nesting_level)
+
+        except Exception as e:
+            logger.info(f"让chico准备运行时出错，->{e}")
+            return Fail(self, nesting_level)
 
 class TestActionRobotChicoCallJob(TestAction):
     def __init__(self, action_data: Mapping):
         super().__init__(action_data)
         self.skip = action_data.get('skip', False)
+        self.job_name = action_data.get('job_name', "")
         self.time_out = action_data.get('job_timeout', 1500)
-        self.job_name = ''
 
     def run(self, context: Context, nesting_level: int):
 
@@ -200,6 +289,7 @@ class TestActionRobotChicoCallJob(TestAction):
         _ret = Robot.call_job(self.job_name, self.time_out)
         logger.info(f"job_name ->{self.job_name}")
         if _ret[0]:
+            logger.info(f"step:ChicoRootCallJob-jobname->{self.job_name}-->finish")
             return Pass(self, nesting_level)
         else:
             return Fail(self, nesting_level)
@@ -224,6 +314,7 @@ class TestActionJudgingTestResult(TestAction):
                 break
         if camera_adbDut.chico_result:
             camera_adbDut.chico_result = None
+            logger.info(f"JudgingTestResult-->finish")
             return Pass(self, nesting_level)
         else:
             camera_adbDut.chico_result = None
@@ -254,6 +345,7 @@ class TestActionRobotServoControl(TestAction):
         else:
             ret = Robot.release_fixture()
         if ret[0]:
+            logger.info(f"step:TestActionRobotServoControl----->finish")
             return Pass(self, nesting_level)
         else:
             return Fail(self, nesting_level)
@@ -315,11 +407,11 @@ class TestActionRobotCallJob(TestAction):
             return Fail(self, nesting_level)
 
         if "HOME" not in self.job_name:
-            # 1123
             camera_adbDut.job_name = self.job_name
 
         _ret = Robot.call_job(self.job_name, self.time_out)
         if _ret[0]:
+            logger.info(f"step:calljob-->{self.job_name}---->finish")
             return Pass(self, nesting_level)
         else:
             return Fail(self, nesting_level)
@@ -338,6 +430,7 @@ class TestActionInitializeADB_DUT(TestAction):
         ret = camera_adbDut.adb_devices()
         if ret:
             context.serial_number = camera_adbDut.dut_sn
+            logger.info(f"step:read_sn---->finish")
             return Pass(self, nesting_level)
         else:
             return Fail(self, nesting_level)
@@ -516,6 +609,7 @@ class TestActionStartTest(TestAction):
         elif 'True' not in ret[1]:
             logger.error(f"请关闭门再启动测试！！！！！！！！！！")
             return Fail(self, nesting_level)
+        logger.info(f"step:TestActionStartTest---finish")
         return Pass(self, nesting_level)
 
 
@@ -597,7 +691,7 @@ class TestActionFinishTest_KPI(TestAction):
         """
         _ret = Robot.call_job("HEAD_HOME", 30)
         _ret = Robot.set_usb_door("end")
-
+        logger.info(f"step:TestActionFinishTest---->finish")
         return Pass(self, nesting_level)
 
 
@@ -643,5 +737,6 @@ class robot_alarm(TestAction):
     def run(self, context: Context, nesting_level: int):
         if not Robot.check_robot_alarm():
             return Fail(self, nesting_level)
-        logger.info(f"robot_alarm----ok")
+
+        logger.info(f"step:robot_alarm----ok")
         return Pass(self, nesting_level)
