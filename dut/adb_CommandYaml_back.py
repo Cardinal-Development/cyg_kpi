@@ -6,7 +6,7 @@ import threading
 
 from global_path import config_data, order_data, adb_shell_command, adbTool_path
 
-# from kpi.motion_control.GP8.robot_control import GP8_Robot as Robot
+from kpi.motion_control.GP8.robot_control import GP8_Robot as Robot
 from datetime import datetime
 import yaml
 import logging
@@ -29,10 +29,8 @@ class CommandDut:
         self.time_dict = {}
         self.file_data_dict = {}
         self.job_name = ''
-        # 5.8 chico
-        self.chico_result = None
 
-    def adb_cmd(self, adb_shell: str, timeout=500):
+    def adb_cmd(self, adb_shell: str, timeout = 500):
         """
         使用adb工具执行指定的adb命令并返回结果
         :param adb_shell: 执行的adb命令
@@ -42,6 +40,8 @@ class CommandDut:
         adb_tool_path = self.AdbTool_path["adb_path"]
         # 执行命令
         cmd = "cd {} && {}".format(adb_tool_path, adb_shell)
+        print(f"cmd--->{cmd}")
+        # logger.info(f"cmd--->{cmd}")
         # timeout = 60
         # if "vrs-recorder" in adb_shell:
         #     timeout = 120
@@ -57,13 +57,17 @@ class CommandDut:
             res, err_res = proc.communicate(timeout=timeout)
             res = res.decode('utf8')
             err_res = err_res.decode('utf8')
+            # logger.info(f"adb_res:{res}")
+            # logger.info(f"adb_errres:{err_res}")
             return res, err_res
         # except:
         #     proc.kill()
         #     res = ""
         #     err_res = "timeout"
         #     return res, err_res
-        except:
+        except Exception as ex:
+            print(f"except as ex:{ex}")
+            logger.info(f"except as ex:{ex}")
             try:
                 if proc is not None:
                     # NULL ""
@@ -78,7 +82,7 @@ class CommandDut:
             err_res = "timeout"
             return res, err_res
 
-    def VrsTool_cmd(self, adb_shell: str):
+    def VrsTool_cmd(self,  adb_shell: str):
         """
         使用adb工具执行指定的adb命令并返回结果
         :param adb_shell: 执行的adb命令
@@ -90,7 +94,8 @@ class CommandDut:
         cmd = "cd {} && {}".format(VrsTool_path, adb_shell)
         timeout = 25
         # cmd = adb_shell
-        logger.info(f"执行的命令是--》{cmd}")
+        logger.info(f"!!!!!!!!!!!!!!@@@@@@@@@@@@########---->实际执行的cmd命令 {cmd}")
+
         try:
 
             proc = subprocess.Popen(cmd,
@@ -112,11 +117,11 @@ class CommandDut:
             self.file_data_dict.clear()
             return res, err_res
 
-    def func_track_record(self, adb_shell, out_time):
+    def func_track_record(self,adb_shell,out_time):
         # 执行命令
 
         dut_thread = threading.Thread(target=self.track_record_thread,
-                                      args=(adb_shell, out_time),
+                                      args=(adb_shell,out_time),
                                       name="track_thread")
 
         dut_thread.setDaemon(True)
@@ -152,20 +157,82 @@ class CommandDut:
             err_res = "timeout"
             return res, err_res
 
-    def track_record_thread(self, adb_shell, out_time):
-        res, error = self.track_cmd(adb_shell, out_time)
+    def Chico_cmd(self,adb_shell, time_out,):
+        """
+        使用adb工具执行指定的adb命令并返回结果
+        :param adb_shell: 执行的adb命令
+        :param time_out: 超时
+        :return: adb命令执行结果
+        """
+
+        adb_tool_path = self.AdbTool_path["choic_CmdPath"]
+
+
+        print(f"adb_tool_path-->{adb_tool_path}")
+        # os.chdir(adb_tool_path)
+        cmd = "cd {} && {}".format(adb_tool_path, adb_shell)
+        # cmd = 'python E:\\Chico_package\\chico.pex  --disable-ui config_collect --output_dir E:\\temp\\ --config_file
+        # E:\\Chico_package\\Chico_Robot_run.json  --check_db_state'
+
+        print(f"tarck_cmd -->{cmd}")
+
+        try:
+            proc = subprocess.Popen(cmd,
+                                    shell=True,
+                                    stdin=subprocess.PIPE,
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE,
+                                    bufsize=-1,
+                                    text=True)
+
+            # st = time.time()
+            # while time.time() - st <= 10:
+            #     err_data = proc.stderr.readline()
+            #     print(f"err_data-》{err_data}")
+            #     res_data = proc.stdout.readline()
+            #     # err_data = proc.stderr.readline()
+            #     # err_data = err_data.decode("utf-8")
+            #     print(f"res_data-》{res_data}")
+            #     print("=====================================")
+            #     err_data = proc.stderr.readline()
+            #     print(f"err_data-》{err_data}")
+            #     time.sleep(0.5)
+
+            res, err_res = proc.communicate(timeout=time_out)
+
+            logger.info(f"res::::::{res}")
+            logger.error(f"errrres::::{err_res}")
+            return res, err_res
+        except Exception as e:
+            print(f"eeeeeeeeeee:{e}")
+            try:
+                proc.kill()
+            except Exception as e:
+                print(e)
+            res = ""
+            err_res = "timeout"
+            return res, err_res
+
+
+    def track_record_thread(self,adb_shell,out_time):
+        res, error = self.track_cmd(adb_shell,out_time)
         # logger.info(f"tracking-res->{res}")
         logger.info(f"tracking-error->{error}")
         if 'timeout' in error:
             self.track_result = False
 
+
     def adb_devices(self):
-
-        adb_shell = 'adb devices'
-
+        try:
+            adb_shell = self.adb_command.get('sn_read')[0]
+        except Exception as e:
+            logger.info(f"获取sn_read_command失败-->{e}")
+            return False
         i = 0
         while True:
             res, err_res = self.adb_cmd(adb_shell)
+            logger.info(f"读SN-res:{res}")
+            logger.info(f"读SN-err_res:{err_res}")
             # 获取所有设备的SN
             pattern = re.compile(r'\n(.*)\tdevice')
             search_res = pattern.findall(res)
@@ -203,19 +270,35 @@ class CommandDut:
             logger.info(f"执行{command}命令-》{adb_shell}成功-->err:{err_res},res:{res}")
             return True
 
+
+
+
     def adb_record(self, timeout):
 
         adb_shell = self.adb_command.get('adb_vrs-recorder')[0]
+        # res, error = self.adb_cmd(adb_shell,timeout)
+        # if error:
+        #     logger.info(f"录像失败:error: {error}  res:{res}")
+        #     self.record_res = False
+        # else:
+        #     logger.info(f"录像成功:{res}")
+        #     self.record_res = True
         dut_thread = threading.Thread(target=self.adb_record_thread,
                                       args=(adb_shell, timeout),
                                       name="dut_thread")
+
         dut_thread.setDaemon(True)
         dut_thread.start()
+        # track_thread = threading.Thread(target=self.robot_motion_thread,
+        #                                 args=(job_name, timeout),
+        #                                 name="robot_thread")
+        # track_thread.setDaemon(True)
+        # track_thread.start()
 
     def adb_record_thread(self, adb_shell, timeout):
         print(f"vrs_cmd-->{adb_shell}")
         res, error = self.adb_cmd(adb_shell, timeout)
-        if 'Recording done' not in res:
+        if 'Recording done'not in res:
             logger.info(f"录像失败:error: {error}  res:{res}")
             print(f"录像失败:error: {error}  res:{res}")
             self.record_res = False
@@ -224,67 +307,15 @@ class CommandDut:
             print(f"录像失败:error: {error}  res:{res}")
             self.record_res = True
 
-    def call_chico_thread(self, command, timeout=1500):
-        chico_thread = threading.Thread(target=self.chico_thread_func, args=(command, timeout), name='chico_thread')
-        chico_thread.setDaemon(True)
-        chico_thread.start()
-
-    def chico_cmd(self, command, timeout):
-        chico_path = adbTool_path["chico_CmdPath"]
-        # 执行命令
-        # cmd = "cd /d {} && {}".format(chico_path, command)
-        os.chdir(chico_path)
-        # logger.info(f"chico_cmd--->{cmd}")
-        proc = None
-        try:
-            proc = subprocess.Popen(['powershell.exe', '-Command', command], stdout=subprocess.PIPE,
-                                       stderr=subprocess.PIPE,bufsize=-1)
-
-            res, err_res = proc.communicate(timeout=timeout)
-            res = res.decode('utf8')
-            err_res = err_res.decode('utf8')
-            recode = proc.returncode
-
-            logger.info(f"chico_cmd--->{command}\n---->res:{res}\nerr_res:{err_res}\n returncode--------->{recode}")
-            return res, err_res,recode
-        except:
-            try:
-                if proc is not None:
-                    os.kill(proc.pid, signal.Signals.SIGINT)
-                    time.sleep(1)
-            except Exception as e:
-                print(f"os.kill(proc.pid, signal.Signals.SIGINT)--->{e}")
-                logger.info(f"os.kill(proc.pid, signal.Signals.SIGINT)--->{e}")
-            res = ""
-            err_res = "timeout"
-            recode = 2
-            return res, err_res, recode
-
-
-    def chico_thread_func(self, command, timeout):
-        res, err_res,recode = self.chico_cmd(command, timeout)
-        logger.info(f"chico_res:-->{res},chico_err_res:-->{err_res}\n"
-                    f"recode-->{recode}")
-
-        if recode == 0:
-            self.chico_result = True
-        else:
-            self.chico_result = False
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    # def robot_motion_thread(self, job_name, timeout):
+    #     if not Robot.check_robot_alarm():
+    #         self.robot_ret = False
+    #     if job_name:
+    #         _ret = Robot.call_job(job_name, timeout)
+    #         if _ret[0]:
+    #             self.robot_ret = True
+    #         else:
+    #             self.robot_ret = False
 
     def wait_thread_end(self):
         while True:
@@ -308,10 +339,10 @@ class CommandDut:
         else:
             return False
 
-    def adb_pull_vrs(self, pull_file_path, timeout):
+    def adb_pull_vrs(self, pull_file_path,timeout):
         shell1 = self.adb_command.get('adb_pull_vrs')[0]
         adb_shell = shell1.replace("[local_vrs_path]", pull_file_path)
-        res, err_res = self.adb_cmd(adb_shell, timeout)
+        res, err_res = self.adb_cmd(adb_shell,timeout)
 
         # 拉取失败
         if err_res or '[100%]' not in res:
@@ -324,11 +355,37 @@ class CommandDut:
 
         else:
             logger.debug(f"CMD: {adb_shell}")
+            # file_name = filename
+            # pull_time = round(end_pull_time - start_pull_time, 3)  # 拉取耗时
+            # file_path = os.path.join(pull_file_path, file_name).replace("\\", "/")  # vrs文件路径，\\ -> /
+            # file_size = os.stat(file_path).st_size  # file total bytes
+            # pull_rate_b = file_size / pull_time  # pull rate: bytes/s
+            # pull_rate_mb = pull_rate_b / 1024 / 1024  # pull rate: MB/s
+            # pull_rate = round(pull_rate_mb, 3)
+            # file_mb = file_size / 1024 / 1024  # 保留3位小数
+
+            # log
+            # self.succeed_msg(f"{sn} filename: {filename}.vrs", logger, namespace, "DEBUG")
+            # self.succeed_msg(f"{sn} pull finished", logger, namespace, "DEBUG")
+            # self.succeed_msg(f"{sn} pull rate: {pull_rate} MB/s ({file_size} bytes in {pull_time}s)", logger, namespace,
+            #                  "DEBUG")
+            # self.succeed_msg(f"{sn} file size:{file_mb}MB", logger, namespace, "DEBUG")
+            # self.main_win.message_show(f"&nbsp;&nbsp;{sn} pull finished, {pull_rate}MB/s", TIP_INFO_COLOR)
+            # self.main_win.message_show(f"&nbsp;&nbsp;{sn} pull time:{pull_time}s", TIP_INFO_COLOR)
+            # self.main_win.message_show(f"&nbsp;&nbsp;{sn} file size:{file_mb}MB", TIP_INFO_COLOR)
+            # file_size_limit = self.config_dict.get("SIZE_LIMIT", 120)
+            # if file_mb < file_size_limit:
+            #     self.main_win.message_show(f"&nbsp;&nbsp;failed: {sn}File size is less than {file_size_limit}MB",
+            #                                ERROR_INFO_COLOR)
+            #     logger.error(f"[{namespace}][error]file size")
+            #     return False
+            # self.main_win.message_show(f"&nbsp;&nbsp;passed:{sn} File size", TIP_INFO_COLOR)
+            # self.succeed_msg(f"{sn} file size qualified", logger, namespace, "DEBUG")
             logger.info(f"err:{err_res}\n"
                         f"res:{res}")
             return True
 
-    def copy_file_function(self, base_path):
+    def copy_file_function(self,base_path):
         try:
             # vrs_path = self.file_data_dict.get("vrs_path")
             tracking_path = self.file_data_dict.get("tracking_path")
@@ -338,14 +395,14 @@ class CommandDut:
             # 11.21
             # shutil.copytree(p,out_path,dirs_exist_ok=True)
 
-            # ===============
+            #===============
             # lf = os.path.split(vrs_path)[-1]
             # af = os.path.join(out_path,lf)
             # shutil.copytree(vrs_path,af)
             out_path = base_path
             path_time = self.time_dict.get(self.dut_sn)
             if self.job_name:
-                outpath_ = path_time + "_" + self.dut_sn + "_" + self.job_name
+                outpath_ = path_time+"_"+self.dut_sn+"_"+self.job_name
                 out_path = os.path.join(base_path, outpath_)
 
             logger.info(f"打印出所有的文件路径："
@@ -357,8 +414,11 @@ class CommandDut:
             # for i in os.listdir(vrs_path):
             #     path1 = os.path.join(vrs_path,i)
             #     shutil.copy2(path1, out_path)
+            if not os.listdir(tracking_path):
+                return False
+
             for i in os.listdir(tracking_path):
-                path2 = os.path.join(tracking_path, i)
+                path2 = os.path.join(tracking_path,i)
                 # 12.8=============判断文件大小
                 file_size = os.stat(path2).st_size  # file total bytes
 
@@ -368,12 +428,15 @@ class CommandDut:
                                 f"文件大小为:{file_mb}\n")
                     return False
                 shutil.copy2(path2, out_path)
+
             return True
         except Exception as ex:
             logger.error(f"复制文件时出错-->{ex}")
-            # self.time_dict.clear()
-            # self.file_data_dict.clear()
+            self.time_dict.clear()
+            self.file_data_dict.clear()
             return False
+
+
 
 
 camera_adbDut = CommandDut()
@@ -441,8 +504,11 @@ if __name__ == '__main__':
     # print(camera.snap_image('wocr', "2023"))
     # print(camera.get_gain('wocr'))
     # pass
-    light_S_H_V = [0, 0, 1]
-    cmd_light = f'python vortex_sacn.pex --set_hsv {light_S_H_V[0]} {light_S_H_V[1]} {light_S_H_V[2]}'
-    ew = camera_adbDut.track_cmd(cmd_light, 5)
+    # light_S_H_V= [0,0,1]
+    # cmd_light = f'python vortex_sacn.pex --set_hsv {light_S_H_V[0]} {light_S_H_V[1]} {light_S_H_V[2]}'
+    cmd_chico = 'python chico.pex  --disable-ui config_collect --output_dir D:\\temp12 --config_file  ' \
+                'D:\\Chico_package\\Chico_Robot_run_motive_319.json  --check_db_state '
+    D = {"choic_CmdPath": "D:\\Chico_package\\Chico_Robot_run_motive_319.json"}
+    ew=camera_adbDut.Chico_cmd(cmd_chico,50)
     print(ew[0])
     print(ew[1])
